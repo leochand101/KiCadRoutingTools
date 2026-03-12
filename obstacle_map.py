@@ -118,12 +118,25 @@ def build_base_obstacle_map(pcb_data: PCBData, config: GridRouteConfig,
         for pad in pads:
             _add_pad_obstacle(obstacles, pad, coord, layer_map, config, extra_clearance,
                               clearance_override=effective_clearance)
-
     # Add board edge clearance
     add_board_edge_obstacles(obstacles, pcb_data, config, extra_clearance)
 
     # Add hole-to-hole clearance blocking for existing drills
     add_drill_hole_obstacles(obstacles, pcb_data, config, nets_to_route_set)
+
+    # Add footprint keepouts 
+    for ref,footprint in pcb_data.footprints.items():
+        for keepout in footprint.keepouts:
+            keepout.polygon.sort()
+            print(keepout)
+            print(keepout.polygon[0])
+            min_x, min_y, max_x, max_y = keepout.polygon[0][0],keepout.polygon[0][1],keepout.polygon[3][0],keepout.polygon[3][1]
+            gmin_x, gmin_y = coord.to_grid(min_x, min_y)
+            gmax_x, gmax_y = coord.to_grid(max_x, max_y)
+            for layer_idx in range(num_layers):
+                for gx in range(gmin_x, gmax_x + 1):
+                    for gy in range(gmin_y, gmax_y + 1):
+                        obstacles.add_blocked_cell(gx, gy, layer_idx)
 
     return obstacles
 

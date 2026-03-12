@@ -77,6 +77,11 @@ class Zone:
     polygon: List[Tuple[float, float]]  # List of (x, y) vertices defining the zone outline
     uuid: str = ""
 
+@dataclass
+class Keepout:
+    """Represents a keepout."""
+    polygon: List[Tuple[float, float]]  # List of (x, y) vertices defining the zone outline
+
 
 @dataclass
 class Footprint:
@@ -88,6 +93,7 @@ class Footprint:
     rotation: float
     layer: str
     pads: List[Pad] = field(default_factory=list)
+    keepouts: List[Keepout] = field(default_factory=list)
     value: str = ""  # Component value (e.g., "MCF5213", "100nF", "10K")
 
 
@@ -428,6 +434,7 @@ def extract_nets(content: str) -> Dict[int, Net]:
     for m in re.finditer(net_pattern, content):
         net_id = int(m.group(1))
         net_name = m.group(2)
+        #print(f"{net_name}")
         nets[net_id] = Net(net_id=net_id, name=net_name)
 
     return nets
@@ -615,6 +622,69 @@ def extract_footprints_and_pads(content: str, nets: Dict[int, Net]) -> Tuple[Dic
 
         footprints[reference] = footprint
 
+        # Find each zone block start - zones are at the top level, indented with single tab
+        zone_start_pattern = r'\r?\n\t\t\(zone\s*\r?\n'
+
+        for start_match in re.finditer(zone_start_pattern, fp_text):
+            #print("Adding zone")
+            # Find the matching closing paren by counting balanced parens
+            start_pos = start_match.start() + len(start_match.group()) - 1  # Position after opening (
+            paren_count = 1
+            pos = start_match.end()
+            zone_end = None
+
+            while pos < len(fp_text) and paren_count > 0:
+                char = fp_text[pos]
+                if char == '(':
+                    paren_count += 1
+                elif char == ')':
+                    paren_count -= 1
+                    if paren_count == 0:
+                        zone_end = pos
+                pos += 1
+
+            if zone_end is None:
+                continue
+
+            zone_content = fp_text[start_match.end():zone_end]
+            #print(zone_content)
+
+            # Extract polygon points - find (pts ...) and extract xy coordinates
+            pts_start = zone_content.find('(pts')
+            if pts_start < 0:
+                continue
+
+            # Find matching closing paren for (pts
+            paren_count = 0
+            pts_end = pts_start
+            for i in range(pts_start, len(zone_content)):
+                if zone_content[i] == '(':
+                    paren_count += 1
+                elif zone_content[i] == ')':
+                    paren_count -= 1
+                    if paren_count == 0:
+                        pts_end = i
+                        break
+
+            pts_content = zone_content[pts_start:pts_end + 1]
+            # Parse all (xy x y) points
+            xy_pattern = r'\(xy\s+([\d.-]+)\s+([\d.-]+)\)'
+            polygon = [(float(m.group(1)), float(m.group(2)))
+                   for m in re.finditer(xy_pattern, pts_content)]
+
+            if not polygon:
+                continue
+
+            # Extract keepout
+            keepout_start = zone_content.find('(keepout')
+            if keepout_start > 0:
+                #print("Adding keepout")
+                keepout = Keepout(
+                    polygon=polygon
+                )
+                footprint.keepouts.append(keepout)
+
+
     return footprints, pads_by_net
 
 
@@ -683,6 +753,7 @@ def extract_zones(content: str) -> List[Zone]:
     zone_start_pattern = r'\r?\n\t\(zone\s*\r?\n'
 
     for start_match in re.finditer(zone_start_pattern, content):
+        #print("Adding zone")
         # Find the matching closing paren by counting balanced parens
         start_pos = start_match.start() + len(start_match.group()) - 1  # Position after opening (
         paren_count = 1
