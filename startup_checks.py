@@ -12,6 +12,8 @@ If version mismatch is detected, automatically rebuilds using build_router.py.
 import sys
 import os
 
+sys.path.insert(0, "/usr/local/lib/python3.10/dist-packages")
+
 
 def check_python_dependencies():
     """Check that required Python libraries are available."""
