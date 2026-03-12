@@ -6,8 +6,8 @@ the CLI (route.py) and the GUI (swig_gui.py) to ensure consistency.
 """
 
 # Track/Via parameters
-TRACK_WIDTH = 0.3  # mm
-CLEARANCE = 0.25  # mm
+TRACK_WIDTH = 0.2  # mm
+CLEARANCE = 0.1  # mm
 VIA_SIZE = 0.5  # mm
 VIA_DRILL = 0.3  # mm
 
